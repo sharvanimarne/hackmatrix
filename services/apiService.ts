@@ -1,16 +1,18 @@
-// services/apiService.ts
+// src/services/apiService.ts
+// CREATE THIS NEW FILE
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // Token management
-const getToken = (): string | null => {
+export const getToken = (): string | null => {
   return localStorage.getItem('nemesis_token');
 };
 
-const setToken = (token: string): void => {
+export const setToken = (token: string): void => {
   localStorage.setItem('nemesis_token', token);
 };
 
-const removeToken = (): void => {
+export const removeToken = (): void => {
   localStorage.removeItem('nemesis_token');
 };
 
@@ -38,7 +40,7 @@ const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
 };
 
 export const ApiService = {
-  // Auth
+  // ==================== AUTH ====================
   register: async (name: string, email: string, password: string) => {
     const data = await apiFetch('/auth/register', {
       method: 'POST',
@@ -87,7 +89,7 @@ export const ApiService = {
       body: JSON.stringify({ settings }),
     }),
 
-  // Finance
+  // ==================== FINANCE ====================
   getFinances: (params?: any) => {
     const query = params ? `?${new URLSearchParams(params)}` : '';
     return apiFetch(`/finance${query}`);
@@ -110,7 +112,7 @@ export const ApiService = {
 
   getFinanceSummary: () => apiFetch('/finance/summary'),
 
-  // Journal
+  // ==================== JOURNAL ====================
   getJournals: () => apiFetch('/journal'),
   
   createJournal: (data: any) =>
@@ -128,7 +130,9 @@ export const ApiService = {
   deleteJournal: (id: string) =>
     apiFetch(`/journal/${id}`, { method: 'DELETE' }),
 
-  // Habits
+  getJournalStats: () => apiFetch('/journal/stats'),
+
+  // ==================== HABITS ====================
   getHabits: () => apiFetch('/habits'),
   
   createHabit: (data: any) =>
@@ -149,7 +153,9 @@ export const ApiService = {
   deleteHabit: (id: string) =>
     apiFetch(`/habits/${id}`, { method: 'DELETE' }),
 
-  // Subscriptions
+  getHabitStats: () => apiFetch('/habits/stats'),
+
+  // ==================== SUBSCRIPTIONS ====================
   getSubscriptions: () => apiFetch('/subscriptions'),
   
   createSubscription: (data: any) =>
@@ -161,7 +167,7 @@ export const ApiService = {
   deleteSubscription: (id: string) =>
     apiFetch(`/subscriptions/${id}`, { method: 'DELETE' }),
 
-  // Wellness
+  // ==================== WELLNESS ====================
   getWellnessConfig: () => apiFetch('/wellness/config'),
   
   updateWellnessConfig: (config: string[]) =>
@@ -178,7 +184,9 @@ export const ApiService = {
       body: JSON.stringify({ state }),
     }),
 
-  // Gratitude
+  getWellnessHistory: () => apiFetch('/wellness/history'),
+
+  // ==================== GRATITUDE ====================
   getGratitude: () => apiFetch('/gratitude'),
   
   updateGratitude: (items: string[]) =>
@@ -187,7 +195,7 @@ export const ApiService = {
       body: JSON.stringify({ items }),
     }),
 
-  // Hydration
+  // ==================== HYDRATION ====================
   getHydrationToday: () => apiFetch('/hydration/today'),
   
   updateHydrationToday: (cups: number) =>
@@ -196,7 +204,9 @@ export const ApiService = {
       body: JSON.stringify({ cups }),
     }),
 
-  // Sleep
+  getHydrationHistory: () => apiFetch('/hydration/history'),
+
+  // ==================== SLEEP ====================
   getLatestSleep: () => apiFetch('/sleep/latest'),
   
   createSleep: (hours: number) =>
@@ -208,9 +218,29 @@ export const ApiService = {
   deleteSleep: (id: string) =>
     apiFetch(`/sleep/${id}`, { method: 'DELETE' }),
 
-  // AI Insights
+  getSleepStats: () => apiFetch('/sleep/stats'),
+
+  // ==================== AI INSIGHTS ====================
   generateInsights: () =>
     apiFetch('/ai/insights', { method: 'POST' }),
-};
 
-export { getToken, setToken, removeToken };
+  // ==================== SETTINGS ====================
+  getSettings: () => apiFetch('/settings'),
+
+  updateUserSettings: (settings: any) =>
+    apiFetch('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    }),
+
+  resetSettings: () =>
+    apiFetch('/settings/reset', { method: 'POST' }),
+
+  exportUserData: () => apiFetch('/settings/export'),
+
+  deleteUserData: (confirmEmail: string) =>
+    apiFetch('/settings/data', {
+      method: 'DELETE',
+      body: JSON.stringify({ confirmEmail }),
+    }),
+};

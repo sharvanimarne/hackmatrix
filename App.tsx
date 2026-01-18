@@ -1,511 +1,316 @@
-import React, { useState, useEffect, useRef } from 'react';
+// src/App.tsx
+// REPLACE THE ENTIRE FILE WITH THIS CODE
+
+import { useState, useEffect } from 'react';
+import { ApiService, getToken } from './services/apiService';
 import { StorageService } from './services/storageService';
-import { UserProfile, WindowState, WorkspaceType, WidgetType } from './types';
-import { Sidebar } from './components/Sidebar';
-import { Button, Input } from './components/UIComponents';
-import { WindowFrame } from './components/WindowFrame';
-import { Terminal, Grid, Lock, Unlock } from 'lucide-react';
-import * as ReactGridLayout from 'react-grid-layout';
+import { UserProfile } from './types';
+import Workspace from './components/Workspace';
+import { SettingsWidget } from './components/WidgetRegistry';
 
-// Import Widgets
-import * as Widgets from './components/WidgetRegistry';
-import { ApiService } from './services/apiService';
+type WorkspaceName = 'Dashboard' | 'Finance' | 'Journal' | 'Habits' | 'Insights' | 'Settings';
 
-// Workaround for: Module '"react-grid-layout"' has no exported member 'WidthProvider'.
-const { Responsive, WidthProvider } = ReactGridLayout as any;
-const ResponsiveGridLayout = WidthProvider(Responsive);
-
-// --- DEFAULT LAYOUT CONFIGURATION ---
-const DEFAULT_WINDOWS: WindowState[] = [
-  // --- DASHBOARD WORKSPACE ---
-  { 
-    id: 'win-wallet', title: 'WALLET', componentType: 'wallet', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-wallet', x: 0, y: 0, w: 3, h: 4, minW: 2, minH: 3 }
-  },
-  { 
-    id: 'win-habits-stat', title: 'HABIT_STATS', componentType: 'habit-stats', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-habits-stat', x: 3, y: 0, w: 3, h: 4, minW: 2, minH: 3 }
-  },
-  { 
-    id: 'win-mood-stat', title: 'MOOD_LOG', componentType: 'mood-stats', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-mood-stat', x: 6, y: 0, w: 3, h: 4, minW: 2, minH: 3 }
-  },
-  { 
-    id: 'win-wellness', title: 'WELLNESS_CHECK', componentType: 'wellness-checklist', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-wellness', x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 4 }
-  },
-  { 
-    id: 'win-chart', title: 'CASHFLOW_ANALYSIS', componentType: 'chart', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-chart', x: 0, y: 4, w: 6, h: 6, minW: 4, minH: 5 }
-  },
-  { 
-    id: 'win-recent-tx', title: 'RECENT_TX', componentType: 'recent-transactions', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-recent-tx', x: 6, y: 4, w: 3, h: 6, minW: 2, minH: 4 }
-  },
-  { 
-    id: 'win-quote', title: 'DAILY_STOIC', componentType: 'quote', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-quote', x: 0, y: 10, w: 3, h: 3, minW: 2, minH: 2 }
-  },
-  { 
-    id: 'win-breathing', title: 'RESONANCE_BREATH', componentType: 'breathing', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-breathing', x: 0, y: 13, w: 3, h: 3, minW: 2, minH: 2 }
-  },
-  { 
-    id: 'win-hydration', title: 'HYDRATION_LEVEL', componentType: 'hydration', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-hydration', x: 3, y: 14, w: 3, h: 3, minW: 2, minH: 2 }
-  },
-  { 
-    id: 'win-tasks', title: 'ACTIVE_TASKS', componentType: 'tasks', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-tasks', x: 9, y: 6, w: 3, h: 8, minW: 2, minH: 5 }
-  },
-  { 
-    id: 'win-timer', title: 'FOCUS_TIMER', componentType: 'timer', workspace: 'dashboard', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-timer', x: 3, y: 10, w: 6, h: 4, minW: 2, minH: 3 }
-  },
-  
-  // --- FINANCE WORKSPACE ---
-  { 
-    id: 'win-fin-form', title: 'ADD_ENTRY', componentType: 'finance-form', workspace: 'finance', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-fin-form', x: 0, y: 0, w: 4, h: 8, minW: 3, minH: 6 }
-  },
-  { 
-    id: 'win-expense-breakdown', title: 'EXPENSE_MATRIX', componentType: 'expense-breakdown', workspace: 'finance', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-expense-breakdown', x: 0, y: 8, w: 4, h: 6, minW: 3, minH: 4 }
-  },
-  { 
-    id: 'win-fin-table', title: 'LEDGER.CSV', componentType: 'finance-table', workspace: 'finance', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-fin-table', x: 4, y: 0, w: 8, h: 10, minW: 4, minH: 6 }
-  },
-  { 
-    id: 'win-savings', title: 'SAVINGS_TARGET', componentType: 'savings-goal', workspace: 'finance', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-savings', x: 4, y: 10, w: 4, h: 4, minW: 3, minH: 3 }
-  },
-  { 
-    id: 'win-subs', title: 'RECURRING_SUBS', componentType: 'subscriptions', workspace: 'finance', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-subs', x: 8, y: 10, w: 4, h: 4, minW: 4, minH: 3 }
-  },
-
-  // --- JOURNAL WORKSPACE ---
-  { 
-    id: 'win-jou-editor', title: 'VIM_BUFFER', componentType: 'journal-editor', workspace: 'journal', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-jou-editor', x: 0, y: 0, w: 7, h: 12, minW: 4, minH: 8 }
-  },
-  { 
-    id: 'win-jou-hist', title: 'HISTORY', componentType: 'journal-history', workspace: 'journal', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-jou-hist', x: 7, y: 0, w: 5, h: 8, minW: 3, minH: 4 }
-  },
-  { 
-    id: 'win-mood-trend', title: 'MOOD_TREND', componentType: 'mood-trend', workspace: 'journal', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-mood-trend', x: 7, y: 8, w: 5, h: 4, minW: 3, minH: 3 }
-  },
-  { 
-    id: 'win-gratitude', title: 'GRATITUDE_LOG', componentType: 'gratitude-log', workspace: 'journal', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-gratitude', x: 0, y: 12, w: 12, h: 4, minW: 3, minH: 3 }
-  },
-
-  // --- HABITS WORKSPACE ---
-  { 
-    id: 'win-hab-form', title: 'PROCESS_MANAGER', componentType: 'habit-form', workspace: 'habits', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-hab-form', x: 0, y: 0, w: 12, h: 4, minW: 6, minH: 3 }
-  },
-  { 
-    id: 'win-hab-heatmap', title: 'CONSISTENCY_GRID', componentType: 'habit-heatmap', workspace: 'habits', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-hab-heatmap', x: 0, y: 4, w: 12, h: 3, minW: 6, minH: 3 }
-  },
-  { 
-    id: 'win-hab-list', title: 'ACTIVE_PROTOCOLS', componentType: 'habit-list', workspace: 'habits', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-hab-list', x: 0, y: 7, w: 12, h: 7, minW: 6, minH: 5 }
-  },
-
-  // --- INSIGHTS WORKSPACE ---
-  { 
-    id: 'win-insights', title: 'AI_CORE.PY', componentType: 'ai-insights', workspace: 'insights', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-insights', x: 0, y: 0, w: 12, h: 12, minW: 6, minH: 8 }
-  },
-
-  // --- SETTINGS WORKSPACE ---
-  { 
-    id: 'win-settings', title: 'SYSTEM_CONFIG', componentType: 'settings', workspace: 'settings', 
-    isOpen: true, isMinimized: false, isMaximized: false, 
-    layout: { i: 'win-settings', x: 0, y: 0, w: 12, h: 14, minW: 6, minH: 8 }
-  },
-];
-
-const App: React.FC = () => {
+const App = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
-  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceType>('dashboard');
-  const [windows, setWindows] = useState<WindowState[]>(DEFAULT_WINDOWS);
-  const [isEditing, setIsEditing] = useState(false); 
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [currentWorkspace, setCurrentWorkspace] = useState<WorkspaceName>('Dashboard');
+  const [theme, setTheme] = useState(StorageService.getTheme());
   
-  // Ref for workspace container to calculate precise width
-  const workspaceRef = useRef<HTMLDivElement>(null);
-  const [containerWidth, setContainerWidth] = useState(1200);
-
-  // Auth State
+  // Auth state
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [authEmail, setAuthEmail] = useState('');
-  const [authName, setAuthName] = useState('');
   const [authPass, setAuthPass] = useState('');
+  const [authName, setAuthName] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const [initializing, setInitializing] = useState(true);
 
-  const applyTheme = (theme: string) => {
-    document.body.classList.remove('theme-aura', 'theme-memento', 'theme-tokyo');
-    if (theme === 'aura') document.body.classList.add('theme-aura');
-    if (theme === 'memento') document.body.classList.add('theme-memento');
-    if (theme === 'tokyo') document.body.classList.add('theme-tokyo');
-  };
-
+  // Check for existing session on mount
   useEffect(() => {
-     StorageService.seedData();
-     const savedTheme = StorageService.getTheme();
-     applyTheme(savedTheme);
-     const storedUser = StorageService.getUser();
-     if (storedUser) setUser(storedUser);
+    const checkAuth = async () => {
+      const token = getToken();
+      if (token) {
+        try {
+          const response = await ApiService.getProfile();
+          setUser(response.user);
+          await StorageService.initializeFromBackend();
+          const savedTheme = response.user.theme || StorageService.getTheme();
+          applyTheme(savedTheme);
+        } catch (error) {
+          console.error('Session invalid:', error);
+          ApiService.logout();
+        }
+      }
+      setInitializing(false);
+    };
+    
+    checkAuth();
   }, []);
 
-  // Update Grid Width on Resize
-  useEffect(() => {
-    if (!workspaceRef.current) return;
-    const observer = new ResizeObserver((entries) => {
-       for (let entry of entries) {
-         setContainerWidth(entry.contentRect.width);
-       }
-    });
-    observer.observe(workspaceRef.current);
-    return () => observer.disconnect();
-  }, [mobileMenuOpen]); // Re-measure if menu toggles
+  // Apply theme
+  const applyTheme = (themeName: string) => {
+    setTheme(themeName);
+    StorageService.setTheme(themeName);
+    
+    const themes: Record<string, { bg: string; primary: string; secondary: string; accent: string }> = {
+      dracula: { bg: '#1a1a2e', primary: '#0f3460', secondary: '#16213e', accent: '#e94560' },
+      aura: { bg: '#0a0e27', primary: '#1a1f3a', secondary: '#2e3856', accent: '#a277ff' },
+      memento: { bg: '#1c1c1c', primary: '#2d2d2d', secondary: '#3d3d3d', accent: '#d4af37' },
+      tokyo: { bg: '#1a1b26', primary: '#24283b', secondary: '#414868', accent: '#7aa2f7' }
+    };
 
-  // Replace handleAuth function with:
-const handleAuth = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setAuthError('');
+    const t = themes[themeName] || themes.dracula;
+    document.documentElement.style.setProperty('--bg', t.bg);
+    document.documentElement.style.setProperty('--primary', t.primary);
+    document.documentElement.style.setProperty('--secondary', t.secondary);
+    document.documentElement.style.setProperty('--accent', t.accent);
+  };
 
-  try {
-    if (authMode === 'login') {
-      const response = await ApiService.login(authEmail, authPass);
-      setUser(response.user);
-      // Load all data from backend
-      await StorageService.initializeFromBackend();
-    } else {
-      const response = await ApiService.register(authName, authEmail, authPass);
-      setUser(response.user);
-    }
-  } catch (error: any) {
-    setAuthError(error.message || 'Authentication failed');
-  }
-};
+  // Handle authentication
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError('');
+    setAuthLoading(true);
 
-// Update useEffect to check for existing token:
-useEffect(() => {
-  const checkAuth = async () => {
-    const token = getToken();
-    if (token) {
-      try {
-        const response = await ApiService.getProfile();
+    try {
+      if (authMode === 'login') {
+        const response = await ApiService.login(authEmail, authPass);
         setUser(response.user);
         await StorageService.initializeFromBackend();
-      } catch (error) {
-        // Token invalid, clear it
-        ApiService.logout();
+        const savedTheme = response.user.theme || 'dracula';
+        applyTheme(savedTheme);
+      } else {
+        const response = await ApiService.register(authName, authEmail, authPass);
+        setUser(response.user);
+        applyTheme('dracula');
       }
+    } catch (error: any) {
+      setAuthError(error.message || 'Authentication failed');
+    } finally {
+      setAuthLoading(false);
     }
   };
-  
-  checkAuth();
-  const savedTheme = StorageService.getTheme();
-  applyTheme(savedTheme);
-}, []);
 
+  // Handle logout
   const handleLogout = () => {
     StorageService.logout();
     setUser(null);
-    setWindows(DEFAULT_WINDOWS);
-    setActiveWorkspace('dashboard');
+    setCurrentWorkspace('Dashboard');
+    setAuthEmail('');
     setAuthPass('');
+    setAuthName('');
     setAuthError('');
   };
 
+  // Update theme (called from Settings widget)
   const handleThemeChange = (newTheme: string) => {
-    StorageService.setTheme(newTheme);
     applyTheme(newTheme);
   };
 
-  const handleSwitchWorkspace = (workspace: WorkspaceType) => {
-    setActiveWorkspace(workspace);
-  };
-
-  const toggleWidget = (type: WidgetType) => {
-    setWindows(prev => {
-      const existing = prev.find(w => w.componentType === type);
-      if (existing) {
-        return prev.map(w => w.componentType === type ? { ...w, isOpen: !w.isOpen, isMinimized: false } : w);
-      }
-      return prev;
-    });
-  };
-
-  // Bulk Actions for Sidebar
-  const handleShowAll = () => {
-    setWindows(prev => prev.map(w => w.workspace === activeWorkspace ? { ...w, isOpen: true, isMinimized: false } : w));
-  };
-
-  const handleHideAll = () => {
-    setWindows(prev => prev.map(w => w.workspace === activeWorkspace ? { ...w, isOpen: false } : w));
-  };
-
-  const onLayoutChange = (currentLayout: any[]) => {
-    if (!isEditing) return; 
-    setWindows(prev => prev.map(win => {
-      if (win.workspace !== activeWorkspace) return win;
-      const layoutItem = currentLayout.find(l => l.i === win.id);
-      if (layoutItem) {
-        return {
-          ...win,
-          layout: { ...win.layout, ...layoutItem } 
-        };
-      }
-      return win;
-    }));
-  };
-
-  const closeWindow = (id: string) => {
-     setWindows(prev => prev.map(w => w.id === id ? { ...w, isOpen: false } : w));
-  };
-
-  const minimizeWindow = (id: string) => {
-    setWindows(prev => prev.map(w => w.id === id ? { ...w, isOpen: false } : w));
-  };
-
-  const maximizeWindow = (id: string) => {
-    setWindows(prev => prev.map(w => w.id === id ? { ...w, isMaximized: !w.isMaximized } : w));
-  };
-
-  const renderComponent = (type: WidgetType) => {
-    switch (type) {
-      // Dashboard
-      case 'wallet': return <Widgets.WalletWidget />;
-      case 'habit-stats': return <Widgets.HabitStatsWidget />;
-      case 'mood-stats': return <Widgets.MoodStatsWidget />;
-      case 'hydration': return <Widgets.HydrationWidget />;
-      case 'sleep': return <Widgets.SleepWidget />;
-      case 'timer': return <Widgets.TimerWidget />;
-      case 'chart': return <Widgets.ChartWidget />;
-      case 'quote': return <Widgets.QuoteWidget />;
-      case 'breathing': return <Widgets.BreathingWidget />;
-      case 'tasks': return <Widgets.TasksWidget />;
-      case 'wellness-checklist': return <Widgets.WellnessChecklistWidget />;
-      case 'recent-transactions': return <Widgets.RecentTransactionsWidget />;
-      
-      // Finance
-      case 'finance-form': return <Widgets.FinanceFormWidget />;
-      case 'finance-table': return <Widgets.FinanceTableWidget />;
-      case 'expense-breakdown': return <Widgets.ExpenseBreakdownWidget />;
-      case 'savings-goal': return <Widgets.SavingsGoalWidget />;
-      case 'subscriptions': return <Widgets.SubscriptionWidget />;
-
-      // Journal
-      case 'journal-editor': return <Widgets.JournalEditorWidget />;
-      case 'journal-history': return <Widgets.JournalHistoryWidget />;
-      case 'mood-trend': return <Widgets.MoodTrendWidget />;
-      case 'gratitude-log': return <Widgets.GratitudeWidget />;
-
-      // Habits
-      case 'habit-form': return <Widgets.HabitFormWidget />;
-      case 'habit-list': return <Widgets.HabitListWidget />;
-      case 'habit-heatmap': return <Widgets.HeatmapWidget />;
-
-      // Other
-      case 'ai-insights': return <Widgets.AiInsightsWidget />;
-      case 'settings': return <Widgets.SettingsWidget user={user} onThemeChange={handleThemeChange} />;
-      default: return null;
-    }
-  };
-
-  // Date Formatter
-  const getFormattedDate = () => {
-    const d = new Date();
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  if (!user) {
+  // Loading screen
+  if (initializing) {
     return (
-      <div className="h-screen w-full bg-tui-base flex items-center justify-center p-4 transition-colors duration-300">
-        <div className="w-full max-w-md bg-tui-base border-2 border-tui-mauve shadow-[8px_8px_0px_0px_#cba6f733]">
-            <div className="bg-tui-mauve p-2 text-tui-base font-bold text-center border-b-2 border-tui-mauve">
-               NEMESIS_AUTH_MANAGER
-            </div>
-            <div className="p-8 space-y-6">
-              <div className="text-center">
-                <div className="w-16 h-16 bg-tui-surface border-2 border-tui-blue rounded-full mx-auto flex items-center justify-center mb-4">
-                   <Terminal size={32} className="text-tui-blue" />
-                </div>
-                <h2 className="text-xl font-bold text-tui-text">WELCOME BACK</h2>
-                <p className="text-tui-subtext text-xs mt-1">Please authenticate to start session</p>
-              </div>
-              <form onSubmit={handleAuth} className="space-y-4">
-                 {authMode === 'register' && (
-                   <Input placeholder="Display Name" label="User" value={authName} onChange={(e) => setAuthName(e.target.value)} required />
-                 )}
-                 <Input type="email" placeholder="user@nemesis.local" label="Email" value={authEmail} onChange={(e) => setAuthEmail(e.target.value)} required />
-                 <Input type="password" placeholder="••••••••" label="Pass" value={authPass} onChange={(e) => setAuthPass(e.target.value)} required />
-                 
-                 {authError && <div className="text-xs text-tui-red font-bold text-center">{authError}</div>}
-                 
-                 <Button type="submit" className="w-full mt-4" variant="primary">
-                   {authMode === 'login' ? 'Start Session' : 'Create User'}
-                 </Button>
-              </form>
-              <div className="text-center pt-4 border-t-2 border-tui-surface">
-                <button onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setAuthError(''); }} className="text-xs text-tui-blue hover:text-tui-mauve font-bold uppercase">
-                  {authMode === 'login' ? "New User? Register" : "Has Account? Login"}
-                </button>
-              </div>
-            </div>
+      <div style={{ 
+        minHeight: '100vh', 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: 'center',
+        background: 'var(--bg)',
+        color: 'white'
+      }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: '1rem' }}>⚡</div>
+          <div>Loading NEMESIS...</div>
         </div>
       </div>
     );
   }
 
-  const allWorkspaces: WorkspaceType[] = ['dashboard', 'finance', 'journal', 'habits', 'insights', 'settings'];
+  // Login/Register screen
+  if (!user) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <div style={{ 
+          background: 'var(--primary)', 
+          padding: '2rem', 
+          borderRadius: '8px', 
+          width: '90%', 
+          maxWidth: '400px',
+          border: '1px solid var(--secondary)'
+        }}>
+          <h1 style={{ color: 'white', marginBottom: '1.5rem', textAlign: 'center' }}>
+            ⚡ NEMESIS
+          </h1>
+          
+          <form onSubmit={handleAuth}>
+            {authMode === 'register' && (
+              <input
+                type="text"
+                placeholder="Full Name"
+                value={authName}
+                onChange={(e) => setAuthName(e.target.value)}
+                required
+                style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  marginBottom: '1rem',
+                  background: 'var(--secondary)',
+                  border: '1px solid var(--accent)',
+                  borderRadius: '4px',
+                  color: 'white'
+                }}
+              />
+            )}
+            
+            <input
+              type="email"
+              placeholder="Email"
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              required
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                marginBottom: '1rem',
+                background: 'var(--secondary)',
+                border: '1px solid var(--accent)',
+                borderRadius: '4px',
+                color: 'white'
+              }}
+            />
+            
+            <input
+              type="password"
+              placeholder="Password"
+              value={authPass}
+              onChange={(e) => setAuthPass(e.target.value)}
+              required
+              minLength={4}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                marginBottom: '1rem',
+                background: 'var(--secondary)',
+                border: '1px solid var(--accent)',
+                borderRadius: '4px',
+                color: 'white'
+              }}
+            />
 
-  return (
-    <div className="flex h-screen bg-tui-base text-tui-text font-mono overflow-hidden transition-colors duration-300 relative">
-      <Sidebar 
-        activeWorkspace={activeWorkspace}
-        windows={windows}
-        onSwitchWorkspace={handleSwitchWorkspace}
-        onToggleWidget={toggleWidget}
-        onShowAll={handleShowAll}
-        onHideAll={handleHideAll}
-        onLogout={handleLogout}
-        mobileMenuOpen={mobileMenuOpen}
-        setMobileMenuOpen={setMobileMenuOpen}
-      />
-      
-      {/* Desktop Area */}
-      <div className="flex-1 relative bg-[radial-gradient(var(--color-overlay)_1px,transparent_1px)] [background-size:20px_20px] flex flex-col min-w-0">
-         
-         {/* Top Status Bar */}
-         <div className="h-8 bg-tui-surface/80 backdrop-blur-sm border-b-2 border-tui-overlay flex items-center justify-between px-4 text-xs select-none shrink-0 z-[100]">
-            <div className="flex gap-4 items-center">
-               <span className="text-tui-blue font-bold">NEMESIS</span>
-               <span className="text-tui-subtext">|</span>
-               <span className="text-tui-mauve uppercase font-bold">{activeWorkspace}</span>
-            </div>
-            <div className="flex gap-4 items-center">
-               <div className="flex items-center gap-2 border-r pr-4 border-tui-overlay mr-2">
-                  <span className="text-tui-subtext hidden sm:inline">MODE:</span>
-                  <button 
-                     onClick={() => setIsEditing(!isEditing)} 
-                     className={`
-                        flex items-center gap-1.5 px-2 py-0.5 rounded transition-all font-bold uppercase
-                        ${isEditing 
-                          ? 'bg-tui-red text-tui-base animate-pulse' 
-                          : 'bg-tui-overlay text-tui-subtext hover:text-tui-text'}
-                     `}
-                  >
-                     {isEditing ? <Unlock size={12} /> : <Lock size={12} />}
-                     {isEditing ? 'EDITING' : 'LOCKED'}
-                  </button>
-               </div>
-               <span className="text-tui-yellow hidden sm:inline">{getFormattedDate()}</span>
-               <span className="text-tui-mauve font-bold">{new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
-            </div>
-         </div>
+            {authError && (
+              <div style={{ color: '#ff6b6b', marginBottom: '1rem', fontSize: '0.875rem' }}>
+                {authError}
+              </div>
+            )}
 
-         {/* Workspaces Container */}
-         <div ref={workspaceRef} className="flex-1 relative overflow-hidden">
-            {allWorkspaces.map(ws => {
-               const isActive = ws === activeWorkspace;
-               const wsWindows = windows.filter(w => w.workspace === ws && w.isOpen && !w.isMinimized);
-               const layouts = wsWindows.map(w => w.layout);
+            <button
+              type="submit"
+              disabled={authLoading}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                background: 'var(--accent)',
+                border: 'none',
+                borderRadius: '4px',
+                color: 'white',
+                fontWeight: 'bold',
+                cursor: authLoading ? 'not-allowed' : 'pointer',
+                opacity: authLoading ? 0.7 : 1
+              }}
+            >
+              {authLoading ? 'Please wait...' : (authMode === 'login' ? 'Login' : 'Create Account')}
+            </button>
+          </form>
 
-               return (
-                  <div 
-                     key={ws}
-                     className={`absolute inset-0 overflow-hidden transition-opacity duration-200 ${isActive ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}
-                     style={{ display: isActive ? 'block' : 'none' }}
-                  >
-                     <div className="w-full h-full p-4 overflow-y-auto custom-scrollbar relative">
-                        <ResponsiveGridLayout
-                           className="layout"
-                           layouts={{ lg: layouts }}
-                           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-                           cols={{ lg: 12, md: 12, sm: 6, xs: 4, xxs: 2 }}
-                           rowHeight={30}
-                           width={containerWidth - 32} // -32 for padding
-                           isDraggable={isEditing}  
-                           isResizable={isEditing}  
-                           draggableHandle=".drag-handle"
-                           onLayoutChange={onLayoutChange}
-                           margin={[16, 16]}
-                           containerPadding={[0, 0]}
-                           useCSSTransforms={true}
-                           compactType="vertical"
-                        >
-                           {/* IMPORTANT: WindowFrame is DIRECT CHILD of ResponsiveGridLayout to receive style/className/onMouseDown */}
-                           {wsWindows.filter(w => !w.isMaximized).map((win) => (
-                              <WindowFrame
-                                 key={win.id}
-                                 data-grid={win.layout}
-                                 window={win}
-                                 onClose={() => closeWindow(win.id)}
-                                 onMinimize={() => minimizeWindow(win.id)}
-                                 onMaximize={() => maximizeWindow(win.id)}
-                                 isEditing={isEditing}
-                              >
-                                 {renderComponent(win.componentType)}
-                              </WindowFrame>
-                           ))}
-                        </ResponsiveGridLayout>
-
-                        {/* Maximized Windows Overlay */}
-                        {wsWindows.filter(w => w.isMaximized).map((win) => (
-                           <WindowFrame
-                              key={win.id}
-                              window={win}
-                              onClose={() => closeWindow(win.id)}
-                              onMinimize={() => minimizeWindow(win.id)}
-                              onMaximize={() => maximizeWindow(win.id)}
-                              isEditing={false}
-                           >
-                              {renderComponent(win.componentType)}
-                           </WindowFrame>
-                        ))}
-                     </div>
-                  </div>
-               );
-            })}
-         </div>
+          <div style={{ marginTop: '1rem', textAlign: 'center' }}>
+            <button
+              onClick={() => {
+                setAuthMode(authMode === 'login' ? 'register' : 'login');
+                setAuthError('');
+              }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: 'var(--accent)',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              {authMode === 'login' ? 'New User? Register' : 'Have an account? Login'}
+            </button>
+          </div>
+        </div>
       </div>
+    );
+  }
+
+  // Main app
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', color: 'white' }}>
+      {/* Header */}
+      <header style={{ 
+        background: 'var(--primary)', 
+        padding: '1rem 2rem', 
+        borderBottom: '2px solid var(--accent)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center'
+      }}>
+        <h1 style={{ margin: 0, fontSize: '1.5rem' }}>⚡ NEMESIS</h1>
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <span style={{ fontSize: '0.875rem', opacity: 0.8 }}>
+            {user.name || user.email}
+          </span>
+          <button
+            onClick={handleLogout}
+            style={{
+              background: 'var(--secondary)',
+              border: '1px solid var(--accent)',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              color: 'white',
+              cursor: 'pointer'
+            }}
+          >
+            Logout
+          </button>
+        </div>
+      </header>
+
+      {/* Workspace Navigation */}
+      <nav style={{ 
+        background: 'var(--secondary)', 
+        padding: '0.5rem 2rem',
+        display: 'flex',
+        gap: '1rem',
+        overflowX: 'auto'
+      }}>
+        {(['Dashboard', 'Finance', 'Journal', 'Habits', 'Insights', 'Settings'] as WorkspaceName[]).map(ws => (
+          <button
+            key={ws}
+            onClick={() => setCurrentWorkspace(ws)}
+            style={{
+              background: currentWorkspace === ws ? 'var(--accent)' : 'transparent',
+              border: 'none',
+              padding: '0.5rem 1rem',
+              borderRadius: '4px',
+              color: 'white',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {ws}
+          </button>
+        ))}
+      </nav>
+
+      {/* Workspace Content */}
+      <main style={{ padding: '2rem' }}>
+        <Workspace 
+          name={currentWorkspace}
+          widgets={WidgetRegistry[currentWorkspace] || []}
+          onThemeChange={handleThemeChange}
+        />
+      </main>
     </div>
   );
 };

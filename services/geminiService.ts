@@ -1,4 +1,6 @@
-// services/geminiService.ts - Updated to use backend
+// src/services/geminiService.ts
+// REPLACE THE ENTIRE FILE WITH THIS CODE
+
 import { ApiService } from './apiService';
 
 export const GeminiService = {

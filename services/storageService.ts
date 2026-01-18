@@ -1,17 +1,14 @@
-// services/storageService.ts - Updated to work with backend
+// src/services/storageService.ts
+// REPLACE THE ENTIRE FILE WITH THIS CODE
+
 import { UserProfile, FinanceData, JournalEntry, Habit, Subscription } from '../types';
 import { ApiService } from './apiService';
 
 const KEYS = {
   THEME: 'nemesis_theme',
-  HYDRATION: 'nemesis_hydration_today',
-  HYDRATION_DATE: 'nemesis_hydration_date',
-  SLEEP: 'nemesis_sleep_last',
-  WELLNESS: 'nemesis_wellness',
-  WELLNESS_CONFIG: 'nemesis_wellness_config',
 };
 
-// Cache for offline mode
+// In-memory caches for instant UI updates
 let financeCache: FinanceData[] = [];
 let journalCache: JournalEntry[] = [];
 let habitCache: Habit[] = [];
@@ -20,7 +17,7 @@ let gratitudeCache: string[] = [];
 let wellnessConfigCache: string[] = [];
 
 export const StorageService = {
-  // Theme (local only for instant switching)
+  // ==================== THEME ====================
   getTheme: (): string => {
     return localStorage.getItem(KEYS.THEME) || 'dracula';
   },
@@ -34,44 +31,19 @@ export const StorageService = {
     }
   },
 
-  // Settings
-  getSettings: () => {
-    // This should be fetched from user profile
-    return { notifications: true, sound: false };
-  },
-  
-  saveSettings: async (settings: any) => {
-    try {
-      await ApiService.updateSettings(settings);
-    } catch (error) {
-      console.error('Failed to save settings:', error);
-    }
-  },
-
-  // User
-  getUser: (): UserProfile | null => {
-    // User is fetched from backend after login
-    return null;
-  },
-  
-  saveUser: (user: UserProfile) => {
-    // Not needed - handled by backend
-  },
-  
+  // ==================== USER ====================
   logout: () => {
     ApiService.logout();
-    // Clear caches
     financeCache = [];
     journalCache = [];
     habitCache = [];
     subscriptionCache = [];
     gratitudeCache = [];
+    wellnessConfigCache = [];
     localStorage.clear();
   },
 
-  // Password management removed - handled by backend
-
-  // Finance
+  // ==================== FINANCE ====================
   getFinances: (): FinanceData[] => {
     return financeCache;
   },
@@ -115,7 +87,18 @@ export const StorageService = {
     }
   },
 
-  // Journal
+  deleteFinance: async (id: string) => {
+    try {
+      await ApiService.deleteFinance(id);
+      financeCache = financeCache.filter(f => f.id !== id);
+      return financeCache;
+    } catch (error) {
+      console.error('Failed to delete finance:', error);
+      throw error;
+    }
+  },
+
+  // ==================== JOURNAL ====================
   getJournal: (): JournalEntry[] => {
     return journalCache;
   },
@@ -155,7 +138,18 @@ export const StorageService = {
     }
   },
 
-  // Habits
+  deleteJournal: async (id: string) => {
+    try {
+      await ApiService.deleteJournal(id);
+      journalCache = journalCache.filter(j => j.id !== id);
+      return journalCache;
+    } catch (error) {
+      console.error('Failed to delete journal:', error);
+      throw error;
+    }
+  },
+
+  // ==================== HABITS ====================
   getHabits: (): Habit[] => {
     return habitCache;
   },
@@ -182,7 +176,6 @@ export const StorageService = {
   
   saveHabits: async (habits: Habit[]) => {
     habitCache = habits;
-    // Individual updates are handled by widget actions
   },
   
   addHabit: async (habit: Omit<Habit, 'id' | 'userId'>) => {
@@ -236,7 +229,7 @@ export const StorageService = {
     }
   },
 
-  // Subscriptions
+  // ==================== SUBSCRIPTIONS ====================
   getSubscriptions: (): Subscription[] => {
     return subscriptionCache;
   },
@@ -260,32 +253,34 @@ export const StorageService = {
     subscriptionCache = subs;
   },
   
-  const addSub = async (e: React.FormEvent) => {
-  e.preventDefault();
-  if (!newSub.name || !newSub.cost) return;
+  addSubscription: async (sub: Omit<Subscription, 'id'>) => {
+    try {
+      const response = await ApiService.createSubscription(sub);
+      const newSub: Subscription = {
+        id: response.data._id,
+        name: response.data.name,
+        cost: response.data.cost
+      };
+      subscriptionCache = [...subscriptionCache, newSub];
+      return subscriptionCache;
+    } catch (error) {
+      console.error('Failed to add subscription:', error);
+      throw error;
+    }
+  },
   
-  try {
-    await StorageService.addSubscription({
-      name: newSub.name,
-      cost: parseFloat(newSub.cost)
-    });
-    await load();
-    setNewSub({ name: '', cost: '' });
-  } catch (error) {
-    console.error('Failed to add subscription:', error);
-  }
-};
-  
-  const deleteSub = async (id: string) => {
-  try {
-    await StorageService.deleteSubscription(id);
-    await load();
-  } catch (error) {
-    console.error('Failed to delete subscription:', error);
-  }
-};
+  deleteSubscription: async (id: string) => {
+    try {
+      await ApiService.deleteSubscription(id);
+      subscriptionCache = subscriptionCache.filter(s => s.id !== id);
+      return subscriptionCache;
+    } catch (error) {
+      console.error('Failed to delete subscription:', error);
+      throw error;
+    }
+  },
 
-  // Gratitude
+  // ==================== GRATITUDE ====================
   getGratitude: (): string[] => {
     return gratitudeCache;
   },
@@ -310,7 +305,7 @@ export const StorageService = {
     }
   },
 
-  // Wellness
+  // ==================== WELLNESS ====================
   getWellnessConfig: (): string[] => {
     return wellnessConfigCache;
   },
@@ -336,13 +331,13 @@ export const StorageService = {
   },
   
   getWellnessState: (date: string): Record<string, boolean> => {
-    const key = `${KEYS.WELLNESS}_${date}`;
+    const key = `nemesis_wellness_${date}`;
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : {};
   },
   
   saveWellnessState: async (date: string, state: Record<string, boolean>) => {
-    const key = `${KEYS.WELLNESS}_${date}`;
+    const key = `nemesis_wellness_${date}`;
     localStorage.setItem(key, JSON.stringify(state));
     try {
       await ApiService.updateWellnessState(date, state);
@@ -351,10 +346,10 @@ export const StorageService = {
     }
   },
 
-  // Hydration (local + backend sync)
+  // ==================== HYDRATION ====================
   getHydrationToday: (): number => {
-    const saved = localStorage.getItem(KEYS.HYDRATION);
-    const date = localStorage.getItem(KEYS.HYDRATION_DATE);
+    const saved = localStorage.getItem('nemesis_hydration');
+    const date = localStorage.getItem('nemesis_hydration_date');
     if (date === new Date().toDateString() && saved) {
       return parseInt(saved);
     }
@@ -362,8 +357,8 @@ export const StorageService = {
   },
   
   saveHydrationToday: async (cups: number) => {
-    localStorage.setItem(KEYS.HYDRATION, cups.toString());
-    localStorage.setItem(KEYS.HYDRATION_DATE, new Date().toDateString());
+    localStorage.setItem('nemesis_hydration', cups.toString());
+    localStorage.setItem('nemesis_hydration_date', new Date().toDateString());
     try {
       await ApiService.updateHydrationToday(cups);
     } catch (error) {
@@ -371,7 +366,7 @@ export const StorageService = {
     }
   },
 
-  // Sleep (backend only)
+  // ==================== SLEEP ====================
   getLatestSleep: async () => {
     try {
       const response = await ApiService.getLatestSleep();
@@ -391,20 +386,20 @@ export const StorageService = {
     }
   },
 
-  // Initialize - load all data from backend
+  // ==================== INITIALIZE ====================
   initializeFromBackend: async () => {
-    await Promise.all([
-      StorageService.loadFinances(),
-      StorageService.loadJournal(),
-      StorageService.loadHabits(),
-      StorageService.loadSubscriptions(),
-      StorageService.loadGratitude(),
-      StorageService.loadWellnessConfig()
-    ]);
-  },
-
-  // Seed data method removed - backend handles seeding
-  seedData: () => {
-    // No-op - backend provides initial data
+    try {
+      await Promise.all([
+        StorageService.loadFinances(),
+        StorageService.loadJournal(),
+        StorageService.loadHabits(),
+        StorageService.loadSubscriptions(),
+        StorageService.loadGratitude(),
+        StorageService.loadWellnessConfig()
+      ]);
+      console.log('✅ All data loaded from backend');
+    } catch (error) {
+      console.error('Failed to initialize data:', error);
+    }
   }
 };
